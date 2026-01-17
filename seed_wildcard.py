@@ -4,16 +4,11 @@ import random
 import re
 
 class SeedBasedWildcardImpact:
-    """
-    ComfyUI-Impact-Pack의 wildcards 폴더 내 .txt 파일을 선택하고,
-    시드값(1 이상)에 따라 특정 줄을 반환한 뒤, 
-    해당 줄에 포함된 와일드카드 구문(__tag__, {a|b}, {1::a|9::b})을 재귀적으로 처리하여 반환하는 노드
-    """
-    
     def __init__(self):
         self.wildcard_map = {}
-        # 기본 경로 설정
+        # Impact Pack 경로 추정
         self.base_dir = os.path.join(folder_paths.base_path, "custom_nodes", "ComfyUI-Impact-Pack", "wildcards")
+        print(f"\n[Debug] Initialized. Target Wildcard Dir: {self.base_dir}")
 
     @classmethod
     def INPUT_TYPES(s):
@@ -28,14 +23,13 @@ class SeedBasedWildcardImpact:
                         rel_path = os.path.relpath(full_path, wildcard_dir)
                         files.append(rel_path)
             files.sort()
-            
+        
         if not files:
             files = ["no_txt_files_found.txt"]
 
         return {
             "required": {
                 "wildcard_file": (files, ), 
-                # [수정됨] 시드값 최소값을 1로 설정, 기본값도 1로 변경
                 "seed": ("INT", {"default": 1, "min": 1, "max": 0xffffffffffffffff}),
             },
         }
@@ -47,23 +41,22 @@ class SeedBasedWildcardImpact:
 
     def process(self, wildcard_file, seed):
         file_path = os.path.join(self.base_dir, wildcard_file)
+        
+        # 1. 맵 갱신 (소문자 키 사용)
+        self.refresh_wildcard_map()
 
-        # 1. 메인 파일 읽기
         lines = self.load_lines(file_path)
         if not lines:
             return ("",)
 
         n = len(lines)
-        
-        # [수정됨] 시드가 1일 때 0번째 줄(첫 줄)을 가져오도록 보정
-        # seed가 1 이상이므로 (seed - 1)을 사용
         index = (seed - 1) % n
         selected_line = lines[index]
+        
+        # print(f"[Debug] Processing Line: {selected_line}") # 너무 시끄러우면 주석 처리
 
-        # 2. 와일드카드 처리 (RNG 초기화)
         rng = random.Random(seed)
         
-        self.refresh_wildcard_map()
         final_text = self.resolve_wildcards(selected_line, rng)
         
         return (final_text,)
@@ -72,9 +65,10 @@ class SeedBasedWildcardImpact:
         if os.path.exists(path) and os.path.isfile(path):
             try:
                 with open(path, 'r', encoding='utf-8') as f:
-                    return [line.strip() for line in f.readlines() if line.strip()]
+                    lines = [line.strip() for line in f.readlines() if line.strip()]
+                    return lines
             except Exception as e:
-                print(f"[SeedWildcard] Error reading {path}: {e}")
+                print(f"[Debug] Error reading file {path}: {e}")
         return []
 
     def refresh_wildcard_map(self):
@@ -83,7 +77,8 @@ class SeedBasedWildcardImpact:
             for root, dirs, filenames in os.walk(self.base_dir):
                 for filename in filenames:
                     if filename.endswith('.txt'):
-                        key = os.path.splitext(filename)[0]
+                        # [핵심 수정 1] 키를 무조건 소문자로 변환하여 저장
+                        key = os.path.splitext(filename)[0].lower()
                         self.wildcard_map[key] = os.path.join(root, filename)
 
     def resolve_wildcards(self, text, rng, depth=0):
@@ -92,18 +87,14 @@ class SeedBasedWildcardImpact:
 
         original_text = text
 
-        # 1. Dynamic Prompts 처리: {1::option1|2::option2}
+        # 1. Dynamic Prompts
         while True:
             match = re.search(r'\{([^{}]+)\}', text)
-            if not match:
-                break
-            
+            if not match: break
             content = match.group(1)
             segments = content.split('|')
-            
             options = []
             weights = []
-            
             for segment in segments:
                 if '::' in segment:
                     try:
@@ -115,39 +106,42 @@ class SeedBasedWildcardImpact:
                 else:
                     weight = 1.0
                     val = segment
-                
                 options.append(val)
                 weights.append(weight)
-            
             try:
                 choice = rng.choices(options, weights=weights, k=1)[0]
             except ValueError:
                 choice = options[0] if options else ""
-
             text = text[:match.start()] + choice + text[match.end():]
 
-        # 2. Wildcard File 처리: __filename__
+        # 2. Wildcard File (__tag__)
         def replace_wildcard(match):
-            key = match.group(1)
+            full_tag = match.group(1)
+            basename = os.path.basename(full_tag)
+            
+            # [핵심 수정 2] 찾는 키도 무조건 소문자로 변환
+            key = os.path.splitext(basename)[0].lower()
+
             if key in self.wildcard_map:
-                lines = self.load_lines(self.wildcard_map[key])
+                target_path = self.wildcard_map[key]
+                lines = self.load_lines(target_path)
                 if lines:
                     return rng.choice(lines)
+            
+            # 파일을 못 찾았으면 원본 텍스트 반환
             return match.group(0)
 
-        text = re.sub(r'__([\w\-\s]+)__', replace_wildcard, text)
+        # 정규표현식: 점(.)과 슬래시(/, \) 포함
+        text = re.sub(r'__([\w\-\s./\\]+)__', replace_wildcard, text)
 
-        # 3. 재귀 호출
         if text != original_text:
             return self.resolve_wildcards(text, rng, depth + 1)
         
         return text
 
-# 노드 매핑
 NODE_CLASS_MAPPINGS = {
     "SeedBasedWildcardImpact": SeedBasedWildcardImpact
 }
-
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeedBasedWildcardImpact": "Seed Based Wildcard (Impact & Weighted)"
 }
