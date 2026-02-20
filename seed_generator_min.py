@@ -2,9 +2,8 @@ import random
 
 class SeedGeneratorWithMin:
     """
-    WAS-NS Seed 노드와 유사하지만, '최소값(min_value)' 보정 기능을 강화한 노드.
-    1. 입력된 시드가 음수라면 즉시 절대값(양수)으로 변환합니다. (예: -50 -> 50)
-    2. 그 후, 설정된 min_value보다 작다면 min_value로 보정합니다. (예: 0 -> 1)
+    입력된 시드가 1 미만(0일 경우)일 때, 
+    1부터 0xffffffffffffffff 사이의 새로운 무작위 난수를 생성하여 반환합니다.
     """
     
     def __init__(self):
@@ -14,12 +13,8 @@ class SeedGeneratorWithMin:
     def INPUT_TYPES(s):
         return {
             "required": {
-                # [수정됨] 음수 입력이 가능하도록 최소값을 확장했습니다.
-                # 그래야 'randomize' 시 음수가 나올 수 있고, 아래 로직이 의미가 생깁니다.
-                "seed": ("INT", {"default": 1, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff}),
-                
-                # 최소값 제한 (기본값 1)
-                "min_value": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff, "step": 1}),
+                # 프론트엔드에서 음수를 생성하지 못하도록 min을 0으로 수정 (Impact Pack 충돌 방지)
+                "seed": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
 
@@ -28,17 +23,12 @@ class SeedGeneratorWithMin:
     FUNCTION = "generate_seed"
     CATEGORY = "Custom/Wildcard"
 
-    def generate_seed(self, seed, min_value):
-        # 1. 절대값 변환 (음수일 경우 양수로 변경)
-        # 예: -150 -> 150
-        seed = abs(seed)
+    def generate_seed(self, seed):
+        # 1 미만의 값(0)이 들어오면 무조건 새로운 난수 발급
+        if seed < 1:
+            seed = random.randint(1, 0xffffffffffffffff)
         
-        # 2. 최소값 보정
-        # 예: 변환된 150 >= 1 이므로 150 유지
-        # 예: 0 >= 1 (거짓) 이므로 1로 보정
-        final_seed = max(seed, min_value)
-        
-        return (final_seed, float(final_seed), str(final_seed))
+        return (seed, float(seed), str(seed))
 
 # 노드 매핑
 NODE_CLASS_MAPPINGS = {
@@ -46,5 +36,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SeedGeneratorWithMin": "Seed Generator (Min Limit)"
+    "SeedGeneratorWithMin": "Seed Generator (Strict Random)"
 }
