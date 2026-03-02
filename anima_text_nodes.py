@@ -13,6 +13,7 @@ class AnimaArtistFormatter:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True, "default": ""}),
+                "target_weight": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 10.0, "step": 0.01}),
             },
         }
 
@@ -21,12 +22,12 @@ class AnimaArtistFormatter:
     FUNCTION = "format_text"
     CATEGORY = "Anima/Text"
 
-    def format_text(self, text):
+    def format_text(self, text, target_weight):
         if not text:
             return ("", "")
             
-        # [추가됨] 추후 가중치를 변경하기 쉽게 변수로 분리해 둡니다.
-        target_weight = "2.0"
+        # API 통신 중 문자열(str)로 전달되더라도 강제로 실수(float)로 변환하여 오류 원천 차단
+        target_weight = float(target_weight)
         
         tags = [t.strip() for t in text.split(',')]
         formatted_tags = []
@@ -45,7 +46,7 @@ class AnimaArtistFormatter:
                 # 가중치가 없는 일반 텍스트라면 그대로 사용
                 base_artist = t
                 
-            formatted_tags.append(f"(@{base_artist}:{target_weight})")
+            formatted_tags.append(f"(@{base_artist}:{round(target_weight, 2)})")
             
         formatted_result = ", ".join(formatted_tags)
         
