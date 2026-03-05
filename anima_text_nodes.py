@@ -1,6 +1,6 @@
 import os
-import random
-import re  # [추가됨] 정규표현식 모듈 임포트
+import json
+import re
 import urllib.parse
 import requests
 from server import PromptServer
