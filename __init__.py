@@ -1,17 +1,16 @@
-# 기존 노드들 임포트
 from .seed_wildcard import NODE_CLASS_MAPPINGS as MAP1, NODE_DISPLAY_NAME_MAPPINGS as NAME1
 from .seed_wildcard_lora import NODE_CLASS_MAPPINGS as MAP2, NODE_DISPLAY_NAME_MAPPINGS as NAME2
 from .seed_generator_min import NODE_CLASS_MAPPINGS as MAP3, NODE_DISPLAY_NAME_MAPPINGS as NAME3
-
-# 예전에 만드신 노드들 임포트
 from .resize_by_scale import NODE_CLASS_MAPPINGS as MAP4, NODE_DISPLAY_NAME_MAPPINGS as NAME4
 from .dynamic_text_concatenate import NODE_CLASS_MAPPINGS as MAP5, NODE_DISPLAY_NAME_MAPPINGS as NAME5
 
-# [추가됨] Anima 텍스트 제어 노드들 임포트
+# 기존 anima_text_nodes 모듈 (Step 1에서 수정한 파일)
 from .anima_text_nodes import NODE_CLASS_MAPPINGS as MAP6, NODE_DISPLAY_NAME_MAPPINGS as NAME6
 
-# 모든 딕셔너리 병합 (MAP1 ~ MAP6)
 NODE_CLASS_MAPPINGS = {**MAP1, **MAP2, **MAP3, **MAP4, **MAP5, **MAP6}
 NODE_DISPLAY_NAME_MAPPINGS = {**NAME1, **NAME2, **NAME3, **NAME4, **NAME5, **NAME6}
 
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+# [추가됨] 자바스크립트 파일이 들어있는 폴더를 ComfyUI 웹 UI에 등록
+WEB_DIRECTORY = "./js"
+
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
