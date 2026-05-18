@@ -6,11 +6,11 @@ from .dynamic_text_concatenate import NODE_CLASS_MAPPINGS as MAP5, NODE_DISPLAY_
 
 # 기존 anima_text_nodes 모듈 (Step 1에서 수정한 파일)
 from .anima_text_nodes import NODE_CLASS_MAPPINGS as MAP6, NODE_DISPLAY_NAME_MAPPINGS as NAME6
+from .safety_level_node import NODE_CLASS_MAPPINGS as MAP7, NODE_DISPLAY_NAME_MAPPINGS as NAME7
 
-NODE_CLASS_MAPPINGS = {**MAP1, **MAP2, **MAP3, **MAP4, **MAP5, **MAP6}
-NODE_DISPLAY_NAME_MAPPINGS = {**NAME1, **NAME2, **NAME3, **NAME4, **NAME5, **NAME6}
+NODE_CLASS_MAPPINGS = {**MAP1, **MAP2, **MAP3, **MAP4, **MAP5, **MAP6, **MAP7}
+NODE_DISPLAY_NAME_MAPPINGS = {**NAME1, **NAME2, **NAME3, **NAME4, **NAME5, **NAME6, **NAME7}
 
-# [추가됨] 자바스크립트 파일이 들어있는 폴더를 ComfyUI 웹 UI에 등록
 WEB_DIRECTORY = "./js"
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
