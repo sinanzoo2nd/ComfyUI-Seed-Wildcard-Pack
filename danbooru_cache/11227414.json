@@ -1,0 +1,89 @@
+{
+    "artist": [
+        "mx2j"
+    ],
+    "character": [
+        "karin_(blue_archive)",
+        "karin_(school_uniform)_(blue_archive)"
+    ],
+    "copyright": [
+        "blue_archive"
+    ],
+    "person": [
+        "1girl"
+    ],
+    "object - weapon": [
+        "anti-materiel_rifle",
+        "boys_anti_tank_rifle",
+        "gun",
+        "gun_sling",
+        "rifle",
+        "sniper_rifle",
+        "weapon"
+    ],
+    "accessory": [
+        "aqua_bow",
+        "aqua_bowtie",
+        "blue_bow",
+        "blue_bowtie",
+        "bow",
+        "bowtie",
+        "scrunchie",
+        "wrist_scrunchie"
+    ],
+    "hair": [
+        "black_hair",
+        "long_hair",
+        "very_long_hair"
+    ],
+    "clothing": [
+        "blue_cardigan",
+        "blue_sweater",
+        "cardigan",
+        "collared_shirt",
+        "miniskirt",
+        "pleated_skirt",
+        "school_uniform",
+        "shirt",
+        "skirt",
+        "sweater",
+        "white_shirt"
+    ],
+    "species & traits": [
+        "blue_halo",
+        "halo",
+        "purple_halo"
+    ],
+    "state & emotion": [
+        "blush",
+        "smile"
+    ],
+    "body": [
+        "breasts",
+        "dark-skinned_female",
+        "dark_skin",
+        "large_breasts",
+        "thighs"
+    ],
+    "meta": [
+        "character_name",
+        "company_name",
+        "copyright_name",
+        "copyright_notice"
+    ],
+    "camera & composition": [
+        "full_body"
+    ],
+    "appearance": [
+        "long_sleeves"
+    ],
+    "pose": [
+        "looking_at_viewer"
+    ],
+    "face": [
+        "yellow_eyes"
+    ],
+    "uncategorized": [
+        "skirt_peek"
+    ]
+}

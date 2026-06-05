@@ -5,6 +5,7 @@ class SafetyLevelNode:
     def INPUT_TYPES(s):
         return {
             "required": {
+                "enabled": ("BOOLEAN", {"default": True}), # on/off 스위치 추가
                 "level": (["LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4"], {"default": "LEVEL 1"}),
                 "uncensored": ("BOOLEAN", {"default": False}),
                 "random_mode": ("BOOLEAN", {"default": False}), # 랜덤 스위치 추가
@@ -17,13 +18,17 @@ class SafetyLevelNode:
     CATEGORY = "Seed Wildcard/Text"
 
     @classmethod
-    def IS_CHANGED(s, level, uncensored, random_mode):
+    def IS_CHANGED(s, enabled, level, uncensored, random_mode):
         # random_mode가 True일 경우 매번 캐시를 무효화하여 새로 실행되도록 함
         if random_mode:
             return float("nan")
         return ""
 
-    def get_tags(self, level, uncensored, random_mode):
+    def get_tags(self, enabled, level, uncensored, random_mode):
+        # 스위치가 off(False)일 경우 두 출력값을 공백(" ")으로 반환
+        if not enabled:
+            return (" ", " ")
+
         # 랜덤 모드가 켜진 경우 기존 입력을 덮어씀 (백엔드 비활성화)
         if random_mode:
             level = random.choice(["LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4"])

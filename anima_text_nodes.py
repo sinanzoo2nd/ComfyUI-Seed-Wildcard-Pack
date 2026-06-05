@@ -109,34 +109,15 @@ class AnimaRandomArtistSelector:
 
 
 
-# --- 1. 전역 캐시 (워크플로우 실행 시 중복 호출 방지) ---
+# --- 1. 전역 메모리 캐시 및 디스크 캐시 폴더 설정 ---
 DANBOORU_CACHE = {}
+base_dir = os.path.dirname(os.path.abspath(__file__))
+DANBOORU_CACHE_DIR = os.path.join(base_dir, "danbooru_cache")
+os.makedirs(DANBOORU_CACHE_DIR, exist_ok=True) # 캐시 폴더 자동 생성
 
-# --- 2. Danbooru 파싱 핵심 로직 (Streamlit 로직과 동일) ---
-def fetch_and_categorize(url):
-    match = re.search(r'/posts/(\d+)', url)
-    if not match:
-        return None, "유효한 Danbooru 게시물 URL이 아닙니다."
-    
-    post_id = match.group(1)
-    if post_id in DANBOORU_CACHE:
-        return DANBOORU_CACHE[post_id], "success"
-
-    original_api_url = f"https://danbooru.donmai.us/posts/{post_id}.json"
-    encoded_url = urllib.parse.quote(original_api_url)
-    proxy_url = f"https://api.codetabs.com/v1/proxy?quest={encoded_url}"
-    headers = {'User-Agent': 'AnimaGeneratorApp/1.0 (by sinanzoo2nd@gmail.com)'}
-    
-    try:
-        response = requests.get(proxy_url, headers=headers, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        return None, f"프록시 우회 호출 실패: {e}"
-
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+# --- 2. 브라우저가 넘겨준 JSON 데이터를 카테고리별로 분류 및 캐싱 (통신 안함) ---
+def process_raw_danbooru(post_id, data):
     category_json_path = os.path.join(base_dir, "tag_category.json")
-    
     cat_data = {}
     if os.path.exists(category_json_path):
         with open(category_json_path, 'r', encoding='utf-8') as f:
@@ -162,29 +143,62 @@ def fetch_and_categorize(url):
             
     if uncategorized: categorized["uncategorized"] = uncategorized
     
+    # 🌟 메모리에 올리고, 워크플로우를 껐다 켜도 유지되도록 디스크(json)에 영구 저장합니다.
     DANBOORU_CACHE[post_id] = categorized
-    return categorized, "success"
+    cache_path = os.path.join(DANBOORU_CACHE_DIR, f"{post_id}.json")
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(categorized, f, ensure_ascii=False, indent=4)
+        
+    return categorized
 
-# --- 3. ComfyUI 커스텀 API 라우터 (버튼 클릭 시 호출됨) ---
+# --- 3. 노드 실행(execute) 시 캐시에서 데이터를 즉시 뽑아오는 함수 ---
+def get_cached_danbooru(url):
+    match = re.search(r'/posts/(\d+)', url)
+    if not match: return None, "유효한 Danbooru 게시물 URL이 아닙니다."
+    
+    post_id = match.group(1)
+    
+    # 1순위: 메모리 캐시에 있으면 즉시 반환
+    if post_id in DANBOORU_CACHE: return DANBOORU_CACHE[post_id], "success"
+        
+    # 2순위: ComfyUI를 재시작했더라도 디스크 캐시에 파일이 남아있으면 읽어서 반환
+    cache_path = os.path.join(DANBOORU_CACHE_DIR, f"{post_id}.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                categorized = json.load(f)
+            DANBOORU_CACHE[post_id] = categorized
+            return categorized, "success"
+        except: pass
+            
+    # 3순위: 아예 데이터가 없음
+    return None, "데이터가 없습니다. 먼저 UI에서 '분석(Analyze)' 버튼을 클릭하여 브라우저로 데이터를 가져와주세요."
+
+# --- 4. ComfyUI 커스텀 API 라우터 (브라우저 JS가 호출하는 엔드포인트) ---
 @PromptServer.instance.routes.post("/anima/danbooru_analyze")
 async def analyze_danbooru_api(request):
     post_data = await request.json()
     url = post_data.get("url", "")
-    categorized, msg = fetch_and_categorize(url)
+    raw_data = post_data.get("raw_data", None) # 🌟 JS 브라우저가 넘겨주는 순수 JSON 데이터!
     
-    if categorized:
+    match = re.search(r'/posts/(\d+)', url)
+    if not match: return web.json_response({"status": "error", "message": "Invalid URL"})
+    post_id = match.group(1)
+    
+    if raw_data:
+        categorized = process_raw_danbooru(post_id, raw_data)
         return web.json_response({"status": "success", "data": categorized})
     else:
-        return web.json_response({"status": "error", "message": msg})
+        return web.json_response({"status": "error", "message": "브라우저에서 데이터를 전달받지 못했습니다."})
 
-# --- 4. ComfyUI 노드 정의 ---
+# --- 5. ComfyUI 노드 정의 ---
 class DanbooruTagImporter:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "url": ("STRING", {"default": "https://danbooru.donmai.us/posts/..."}),
-                # 18개 카테고리 스위치
+                # (api_key 등의 입력칸은 불필요하므로 제거, 기존 스위치들만 남김)
                 "artist": ("BOOLEAN", {"default": True}),
                 "character": ("BOOLEAN", {"default": True}),
                 "copyright": ("BOOLEAN", {"default": True}),
@@ -205,7 +219,6 @@ class DanbooruTagImporter:
                 "uncategorized": ("BOOLEAN", {"default": False}),
             },
             "optional": {
-                # 프론트엔드 버튼 클릭 시 분석 결과가 표시될 숨김/더미 텍스트박스
                 "preview_box": ("STRING", {"multiline": True, "default": "버튼을 눌러 분석하세요."}),
             }
         }
@@ -219,65 +232,38 @@ class DanbooruTagImporter:
                 clothing, accessory, state_emotion, pose, action, camera_composition, background, environment, 
                 uncategorized, preview_box=""):
         
-        # 1. 태그 파싱 (버튼을 눌렀을 때 저장된 캐시가 있다면 즉시 로드됨)
-        categorized, msg = fetch_and_categorize(url)
+        # 🌟 통신 금지! 오직 캐시(메모리/디스크)에서만 데이터를 안전하게 빼옵니다.
+        categorized, msg = get_cached_danbooru(url)
         if not categorized:
             return ("", "", "", f"Error: {msg}")
 
-        # 2. 스위치 상태 매핑 (딕셔너리 키는 JSON의 카테고리 명과 정확히 일치해야 함)
+        # (이하 스위치 상태 매핑 및 build_prompt 로직은 기존 코드 그대로 유지)
         active_cats = {
-            "artist": artist, 
-            "character": character, 
-            "copyright": copyright, 
-            "person": person,
-            "species & traits": species_traits, 
-            "body": body, 
-            "face": face, 
-            "hair": hair, 
-            "appearance": appearance, 
-            "clothing": clothing, 
-            "accessory": accessory, 
-            "state & emotion": state_emotion, 
-            "pose": pose, 
-            "action": action, 
-            "camera & composition": camera_composition, 
-            "background": background, 
-            "environment": environment, 
-            "uncategorized": uncategorized
+            "artist": artist, "character": character, "copyright": copyright, "person": person,
+            "species & traits": species_traits, "body": body, "face": face, "hair": hair, 
+            "appearance": appearance, "clothing": clothing, "accessory": accessory, 
+            "state & emotion": state_emotion, "pose": pose, "action": action, 
+            "camera & composition": camera_composition, "background": background, 
+            "environment": environment, "uncategorized": uncategorized
         }
 
-        # 3. 포맷팅 도우미: 언더바를 공백으로, 괄호는 이스케이프 처리
         def format_tags(tags_list):
             return [t.replace('_', ' ').replace('(', r'\(').replace(')', r'\)') for t in tags_list]
 
-        # 4. 문자열 결합 도우미: 카테고리 단위로 줄바꿈(,\n)
         def build_prompt(cat_order):
             lines = []
             for cat in cat_order:
                 if active_cats.get(cat, False) and cat in categorized:
                     formatted = format_tags(categorized[cat])
-                    if formatted:
-                        lines.append(", ".join(formatted))
+                    if formatted: lines.append(", ".join(formatted))
             return ",\n".join(lines) if lines else ""
 
-        # --- [최종 출력 그룹화] ---
-        
-        # [Output 1] 메인 작가
         artist_prompt = build_prompt(["artist"])
-
-        # [Output 2] 캐릭터 (앱과 동일한 우선순위 정렬 적용)
-        char_order = [
-            "person", "copyright", "character", "species & traits", "body", 
-            "face", "hair", "appearance", "clothing", "accessory", 
-            "state & emotion", "pose", "action", "uncategorized"
-        ]
+        char_order = ["person", "copyright", "character", "species & traits", "body", "face", "hair", "appearance", "clothing", "accessory", "state & emotion", "pose", "action", "uncategorized"]
         character_prompt = build_prompt(char_order)
-
-        # [Output 3] 배경 및 구도
         bg_order = ["camera & composition", "background", "environment"]
         background_prompt = build_prompt(bg_order)
 
-        # [Output 4] 전체 Raw 태그 (스위치 상태와 무관하게 모든 태그를 포맷팅하여 1줄로 출력)
         all_raw_list = []
         for cat, tags in categorized.items():
             all_raw_list.extend(format_tags(tags))
